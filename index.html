@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-Map Solver</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Karnaugh Map Solver</h1>
+            <p class="subtitle">Boolean Expression Minimization</p>
+            <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+                <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+        </header>
+
+        <main>
+            <section class="card input-section">
+                <h2>Input</h2>
+                <div class="form-group">
+                    <label for="variables">Number of Variables</label>
+                    <select id="variables" class="form-control">
+                        <option value="2">2 Variables (A, B)</option>
+                        <option value="3">3 Variables (A, B, C)</option>
+                        <option value="4" selected>4 Variables (A, B, C, D)</option>
+                        <option value="5">5 Variables (A, B, C, D, E)</option>
+                        <option value="6">6 Variables (A, B, C, D, E, F)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="minterms">Minterms (comma-separated)</label>
+                    <input type="text" id="minterms" class="form-control" 
+                           placeholder="e.g., 0, 1, 3, 7">
+                </div>
+
+                <div class="form-group">
+                    <label for="dontcares">Don't Cares (optional)</label>
+                    <input type="text" id="dontcares" class="form-control" 
+                           placeholder="e.g., 2, 5">
+                </div>
+
+                <button id="solveBtn" class="btn btn-primary">Solve K-Map</button>
+            </section>
+
+            <section id="resultSection" class="card result-section" style="display: none;">
+                <h2>Minimized Expression</h2>
+                <div id="result" class="expression-box"></div>
+            </section>
+
+            <section id="kmapSection" class="card kmap-section" style="display: none;">
+                <h2>Karnaugh Map</h2>
+                <div id="kmapWrapper" class="kmap-wrapper">
+                    <div id="kmap"></div>
+                </div>
+                <div id="primeImplicantsList" class="prime-implicants-list"></div>
+            </section>
+
+            <section class="card batch-section">
+                <h2>Batch Processing</h2>
+                <div class="button-group">
+                    <button id="addBatchBtn" class="btn btn-secondary">Add to Batch</button>
+                    <button id="exportBtn" class="btn btn-outline">Export to CSV</button>
+                </div>
+                <div id="batchList" class="batch-list"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Quine-McCluskey algorithm with Petrick's method</p>
+        </footer>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
