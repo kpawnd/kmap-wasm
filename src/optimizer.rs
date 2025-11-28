@@ -77,7 +77,7 @@ impl Optimizer {
         existing_solution: &[usize],
     ) -> Vec<usize> {
         let mut best_solution = Vec::new();
-        let mut best_cost = (u32::MAX, usize::MAX);
+        let mut best_cost = (usize::MAX, u32::MAX);
 
         let candidates: Vec<usize> = (0..prime_implicants.len())
             .filter(|idx| !existing_solution.contains(idx))
@@ -103,13 +103,17 @@ impl Optimizer {
         current: &mut Vec<usize>,
         covered: &mut HashSet<u32>,
         best_solution: &mut Vec<usize>,
-        best_cost: &mut (u32, usize),
+        best_cost: &mut (usize, u32),
     ) {
+        if current.len() >= best_cost.0 {
+            return;
+        }
+
         let current_literals: u32 = current.iter()
             .map(|&idx| prime_implicants[idx].literal_count() as u32)
             .sum();
 
-        if current_literals >= best_cost.0 || current.len() >= best_cost.1 {
+        if current.len() == best_cost.0 && current_literals >= best_cost.1 {
             return;
         }
 
@@ -117,9 +121,10 @@ impl Optimizer {
             let total_literals: u32 = current.iter()
                 .map(|&idx| prime_implicants[idx].literal_count() as u32)
                 .sum();
-            let cost = (total_literals, current.len());
 
-            if cost < *best_cost {
+            let cost = (current.len(), total_literals);
+
+            if cost.0 < best_cost.0 || (cost.0 == best_cost.0 && cost.1 < best_cost.1) {
                 *best_cost = cost;
                 *best_solution = current.clone();
             }

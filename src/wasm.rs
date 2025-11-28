@@ -11,6 +11,7 @@ pub fn init_panic_hook() {
 pub struct SolveResult {
     pub expression: String,
     pub prime_implicants: Vec<PrimeImplicantInfo>,
+    pub minimal_implicants: Vec<PrimeImplicantInfo>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -26,6 +27,7 @@ pub fn solve_kmap(num_vars: u32, minterms: Vec<u32>, dont_cares: Vec<u32>) -> Js
         let error = SolveResult {
             expression: "Error: Maximum 6 variables supported".to_string(),
             prime_implicants: Vec::new(),
+            minimal_implicants: Vec::new(),
         };
         return serde_wasm_bindgen::to_value(&error).unwrap();
     }
@@ -36,6 +38,7 @@ pub fn solve_kmap(num_vars: u32, minterms: Vec<u32>, dont_cares: Vec<u32>) -> Js
             let error = SolveResult {
                 expression: format!("Error: Invalid minterm {} (max: {})", m, max_value),
                 prime_implicants: Vec::new(),
+                minimal_implicants: Vec::new(),
             };
             return serde_wasm_bindgen::to_value(&error).unwrap();
         }
@@ -55,8 +58,20 @@ pub fn solve_kmap(num_vars: u32, minterms: Vec<u32>, dont_cares: Vec<u32>) -> Js
     // Solve
     let expression = solver.solve();
     
-    // Get prime implicants for visualization
+    // Get all prime implicants
     let prime_implicants = solver.get_prime_implicants()
+        .iter()
+        .map(|pi| {
+            let binary = format_binary(pi.value, pi.mask, num_vars);
+            PrimeImplicantInfo {
+                binary,
+                minterms: pi.minterms.clone(),
+            }
+        })
+        .collect();
+    
+    // Get only the minimal implicants (minimal cover solution)
+    let minimal_implicants = solver.get_minimal_implicants()
         .iter()
         .map(|pi| {
             let binary = format_binary(pi.value, pi.mask, num_vars);
@@ -70,6 +85,7 @@ pub fn solve_kmap(num_vars: u32, minterms: Vec<u32>, dont_cares: Vec<u32>) -> Js
     let result = SolveResult {
         expression,
         prime_implicants,
+        minimal_implicants,
     };
     
     serde_wasm_bindgen::to_value(&result).unwrap()

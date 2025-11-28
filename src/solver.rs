@@ -242,6 +242,11 @@ impl KmapSolver {
         self.find_prime_implicants()
     }
 
+    pub fn get_minimal_implicants(&mut self) -> Vec<Implicant> {
+        let prime_implicants = self.find_prime_implicants();
+        self.find_minimal_cover(&prime_implicants)
+    }
+
     pub fn num_vars(&self) -> u32 {
         self.num_vars
     }

@@ -289,7 +289,7 @@ function solveKMap() {
         );
 
         displayResult(result.expression);
-        displayKMap(numVars, minterms, dontCares, result.prime_implicants);
+        displayKMap(numVars, minterms, dontCares, result.minimal_implicants);
     } catch (error) {
         console.error('Error:', error);
         alert('An error occurred: ' + error.message);
@@ -366,6 +366,36 @@ function displayKMap(numVars, minterms, dontCares, primeImplicants) {
 
     setTimeout(() => {
         if (primeImplicants && primeImplicants.length > 0) {
+            // Validate that minimal implicants cover all minterms
+            const coveredMinterms = new Set();
+            primeImplicants.forEach(pi => {
+                pi.minterms.forEach(m => coveredMinterms.add(m));
+            });
+            
+            const allMintermssCovered = minterms.every(m => coveredMinterms.has(m));
+            if (!allMintermssCovered) {
+                console.warn('WARNING: Minimal implicants do not cover all minterms! This indicates an algorithm error.');
+            }
+            
+            // Debug: Log the minimal implicants
+            console.log('Minimal implicants for debugging:');
+            primeImplicants.forEach((pi, idx) => {
+                console.log(`  Group ${idx + 1}: binary="${pi.binary}", minterms=[${pi.minterms.join(', ')}]`);
+                // Log the grid positions for each minterm
+                const positions = pi.minterms.map(m => {
+                    // Map minterm to grid position
+                    if (numVars === 3) {
+                        const a = Math.floor(m / 4);
+                        const bc = m % 4;
+                        const grayBC = GRAY_CODE[4];
+                        const bcIdx = grayBC.indexOf(bc);
+                        return `(r=${a},c=${bcIdx})`;
+                    }
+                    return '?';
+                });
+                console.log(`    Positions: ${positions.join(', ')}`);
+            });
+            
             drawLoops(container, table, numVars, primeImplicants);
             displayPrimeImplicantsList(primeImplicants, numVars);
         }
@@ -585,9 +615,9 @@ function drawLoops(container, table, numVars, primeImplicants) {
         const color = LOOP_COLORS[idx % LOOP_COLORS.length];
         const minterms = new Set(pi.minterms);
         
-        // Calculate opacity based on loop size (bigger loops = higher opacity)
+        // Calculate opacity based on loop size
         const sizeRatio = pi.minterms.length / maxLoopSize;
-        const baseOpacity = 0.3 + (sizeRatio * 0.4); // Range: 0.3 to 0.7
+        const baseOpacity = 0.3 + (sizeRatio * 0.4);
         
         const groupCells = [];
         for (let r = 0; r < rows; r++) {
@@ -600,34 +630,61 @@ function drawLoops(container, table, numVars, primeImplicants) {
         
         if (groupCells.length === 0) return;
         
+        // VALIDATION: Check if group size is power of 2
+        if (![1, 2, 4, 8, 16].includes(groupCells.length)) {
+            console.warn(`Invalid group size ${groupCells.length} for prime implicant:`, pi);
+            return;
+        }
+        
         const rowSet = new Set(groupCells.map(gc => gc.r));
         const colSet = new Set(groupCells.map(gc => gc.c));
         
-        // Check for wraparound by checking actual grid structure
         const sortedRows = Array.from(rowSet).sort((a, b) => a - b);
         const sortedCols = Array.from(colSet).sort((a, b) => a - b);
         
-        // Detect horizontal wraparound: cells on both left and right edges WITHOUT middle bridge
+        // CRITICAL: Validate that rows and columns are individually contiguous (no gaps)
+        let rowsContiguous = true;
+        for (let i = 1; i < sortedRows.length; i++) {
+            if (sortedRows[i] !== sortedRows[i - 1] + 1) {
+                rowsContiguous = false;
+                break;
+            }
+        }
+        
+        let colsContiguous = true;
+        for (let i = 1; i < sortedCols.length; i++) {
+            if (sortedCols[i] !== sortedCols[i - 1] + 1) {
+                colsContiguous = false;
+                break;
+            }
+        }
+        
+        // If rows or cols aren't contiguous in their dimension, it's not a valid K-map rectangle
+        if (!rowsContiguous || !colsContiguous) {
+            console.warn(`Invalid rectangle for prime implicant (rows contiguous: ${rowsContiguous}, cols contiguous: ${colsContiguous}):`, pi);
+            return;
+        }
+        
+        // IMPROVED WRAPAROUND DETECTION
         let wrapsHorizontally = false;
         if (sortedCols.length >= 2) {
             const hasLeftEdge = sortedCols.includes(0);
             const hasRightEdge = sortedCols.includes(cols - 1);
             
             if (hasLeftEdge && hasRightEdge && sortedCols.length < cols) {
-                // There's a gap between left and right edges
-                wrapsHorizontally = true;
+                // Check if there's actually a gap (not contiguous)
+                wrapsHorizontally = !isContiguous(sortedCols, cols);
             }
         }
         
-        // Detect vertical wraparound: cells on both top and bottom edges WITHOUT middle bridge
         let wrapsVertically = false;
         if (sortedRows.length >= 2) {
             const hasTopEdge = sortedRows.includes(0);
             const hasBottomEdge = sortedRows.includes(rows - 1);
             
             if (hasTopEdge && hasBottomEdge && sortedRows.length < rows) {
-                // There's a gap between top and bottom edges
-                wrapsVertically = true;
+                // Check if there's actually a gap (not contiguous)
+                wrapsVertically = !isContiguous(sortedRows, rows);
             }
         }
         
@@ -643,8 +700,7 @@ function drawLoops(container, table, numVars, primeImplicants) {
                 element.style.opacity = '0.9';
                 element.style.strokeWidth = '5';
                 
-                // Get term expression (convert binary to variable expression)
-                const term = binaryToExpression(pi.binary, numVars);
+                const term = getLoopExpression(pi.binary, numVars);
                 
                 tooltip.innerHTML = `
                     <strong>Group ${idx + 1}</strong><br>
@@ -670,46 +726,47 @@ function drawLoops(container, table, numVars, primeImplicants) {
             loopElements.push(element);
         };
         
+        // Draw loops based on wraparound pattern
         if (wrapsHorizontally && wrapsVertically) {
+            // Four corners case
             const corners = [
-            [0, 0], [0, cols - 1],
-            [rows - 1, 0], [rows - 1, cols - 1]
-        ];
-        
-        corners.forEach(([r, c]) => {
-            if (rowSet.has(r) && colSet.has(c) && grid[r][c]) {
-                const cell = grid[r][c];
-                const x = cell.x - padding;
-                const y = cell.y - padding;
-                const w = cell.width + 2 * padding;
-                const h = cell.height + 2 * padding;
-                
-                // Draw L-shaped path (open on two sides)
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                let d;
-                if (r === 0 && c === 0) {
-                    // Top-left: draw right edge and bottom edge (open on top and left)
-                    d = `M ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h}`;
-                } else if (r === 0 && c === cols - 1) {
-                    // Top-right: draw left edge and bottom edge (open on top and right)
-                    d = `M ${x + w} ${y + h} L ${x} ${y + h} L ${x} ${y}`;
-                } else if (r === rows - 1 && c === 0) {
-                    // Bottom-left: draw top edge and right edge (open on bottom and left)
-                    d = `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h}`;
-                } else {
-                    // Bottom-right: draw left edge and top edge (open on bottom and right)
-                    d = `M ${x} ${y + h} L ${x} ${y} L ${x + w} ${y}`;
+                [0, 0], [0, cols - 1],
+                [rows - 1, 0], [rows - 1, cols - 1]
+            ];
+            
+            corners.forEach(([r, c]) => {
+                if (rowSet.has(r) && colSet.has(c) && grid[r][c]) {
+                    const cell = grid[r][c];
+                    const x = cell.x - padding;
+                    const y = cell.y - padding;
+                    const w = cell.width + 2 * padding;
+                    const h = cell.height + 2 * padding;
+                    
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    let d;
+                    if (r === 0 && c === 0) {
+                        // Top-left: draw right edge and bottom edge
+                        d = `M ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h}`;
+                    } else if (r === 0 && c === cols - 1) {
+                        // Top-right: draw left edge and bottom edge
+                        d = `M ${x + w} ${y + h} L ${x} ${y + h} L ${x} ${y}`;
+                    } else if (r === rows - 1 && c === 0) {
+                        // Bottom-left: draw top edge and right edge
+                        d = `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h}`;
+                    } else {
+                        // Bottom-right: draw left edge and top edge
+                        d = `M ${x} ${y + h} L ${x} ${y} L ${x + w} ${y}`;
+                    }
+                    path.setAttribute('d', d);
+                    path.classList.add('loop-rect');
+                    path.style.stroke = color;
+                    path.style.fill = 'none';
+                    addLoopInteraction(path);
+                    svg.appendChild(path);
                 }
-                path.setAttribute('d', d);
-                path.classList.add('loop-rect');
-                path.style.stroke = color;
-                path.style.fill = 'none';
-                addLoopInteraction(path);
-                svg.appendChild(path);
-        }
-        });
+            });
         } else if (wrapsHorizontally) {
-            // Horizontal wraparound - draw left and right portions with open sides
+            // Horizontal wraparound
             const leftCols = sortedCols.filter(c => c <= cols / 2);
             const rightCols = sortedCols.filter(c => c > cols / 2);
             
@@ -729,7 +786,6 @@ function drawLoops(container, table, numVars, primeImplicants) {
                         const w = (bottomRight.x + bottomRight.width) - topLeft.x + 2 * padding;
                         const h = (bottomRight.y + bottomRight.height) - topLeft.y + 2 * padding;
                         
-                        // Draw path open on the side that wraps
                         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                         let d;
                         if (groupIdx === 0) {
@@ -749,7 +805,7 @@ function drawLoops(container, table, numVars, primeImplicants) {
                 }
             });
         } else if (wrapsVertically) {
-            // Vertical wraparound - draw top and bottom portions with open sides
+            // Vertical wraparound
             const topRows = sortedRows.filter(r => r <= rows / 2);
             const bottomRows = sortedRows.filter(r => r > rows / 2);
             
@@ -769,7 +825,6 @@ function drawLoops(container, table, numVars, primeImplicants) {
                         const w = (bottomRight.x + bottomRight.width) - topLeft.x + 2 * padding;
                         const h = (bottomRight.y + bottomRight.height) - topLeft.y + 2 * padding;
                         
-                        // Draw path open on the side that wraps
                         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                         let d;
                         if (groupIdx === 0) {
@@ -789,27 +844,40 @@ function drawLoops(container, table, numVars, primeImplicants) {
                 }
             });
         } else {
-            // No wraparound - draw single closed rectangle
+            // No wraparound - simple rectangle
             const minRow = Math.min(...sortedRows);
             const maxRow = Math.max(...sortedRows);
             const minCol = Math.min(...sortedCols);
             const maxCol = Math.max(...sortedCols);
             
-            const topLeft = grid[minRow][minCol];
-            const bottomRight = grid[maxRow][maxCol];
+            // Validate that the rectangle is actually filled (no gaps in the middle)
+            let isValidRectangle = true;
+            const expectedCellCount = (maxRow - minRow + 1) * (maxCol - minCol + 1);
             
-            if (topLeft && bottomRight) {
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                rect.setAttribute('x', topLeft.x - padding);
-                rect.setAttribute('y', topLeft.y - padding);
-                rect.setAttribute('width', (bottomRight.x + bottomRight.width) - topLeft.x + 2 * padding);
-                rect.setAttribute('height', (bottomRight.y + bottomRight.height) - topLeft.y + 2 * padding);
-                rect.setAttribute('rx', cornerRadius);
-                rect.setAttribute('ry', cornerRadius);
-                rect.classList.add('loop-rect');
-                rect.style.stroke = color;
-                addLoopInteraction(rect);
-                svg.appendChild(rect);
+            if (groupCells.length !== expectedCellCount) {
+                // Cells don't form a complete rectangle - this is invalid for K-maps
+                console.warn(`Invalid group shape for prime implicant:`, pi, 
+                    `Expected ${expectedCellCount} cells in rectangle, got ${groupCells.length}`);
+                isValidRectangle = false;
+            }
+            
+            if (isValidRectangle) {
+                const topLeft = grid[minRow][minCol];
+                const bottomRight = grid[maxRow][maxCol];
+                
+                if (topLeft && bottomRight) {
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('x', topLeft.x - padding);
+                    rect.setAttribute('y', topLeft.y - padding);
+                    rect.setAttribute('width', (bottomRight.x + bottomRight.width) - topLeft.x + 2 * padding);
+                    rect.setAttribute('height', (bottomRight.y + bottomRight.height) - topLeft.y + 2 * padding);
+                    rect.setAttribute('rx', cornerRadius);
+                    rect.setAttribute('ry', cornerRadius);
+                    rect.classList.add('loop-rect');
+                    rect.style.stroke = color;
+                    addLoopInteraction(rect);
+                    svg.appendChild(rect);
+                }
             }
         }
     });
@@ -817,18 +885,42 @@ function drawLoops(container, table, numVars, primeImplicants) {
     container.appendChild(svg);
 }
 
-// Helper function to convert binary string to variable expression
-function binaryToExpression(binary, numVars) {
-    const terms = [];
-    for (let i = 0; i < numVars; i++) {
-        if (binary[i] === '0') {
-            terms.push(VAR_NAMES[i] + "'");
-        } else if (binary[i] === '1') {
-            terms.push(VAR_NAMES[i]);
+// Helper function to check if array is contiguous (with wraparound support)
+function isContiguous(sorted, max) {
+    if (sorted.length === 0) return true;
+    if (sorted.length === 1) return true;
+    
+    // Check for normal contiguous sequence
+    let isNormalContiguous = true;
+    for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i] !== sorted[i - 1] + 1) {
+            isNormalContiguous = false;
+            break;
         }
-        // '-' means don't care, skip it
     }
-    return terms.join('');
+    
+    if (isNormalContiguous) return true;
+    
+    // Check for wraparound contiguous: [0, 1, ..., max-2, max-1]
+    // Pattern: starts at 0, ends at max-1, with ONE gap in the middle
+    if (sorted[0] !== 0 || sorted[sorted.length - 1] !== max - 1) {
+        return false;
+    }
+    
+    // Find the gap
+    let gapStart = -1;
+    for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i] !== sorted[i - 1] + 1) {
+            if (gapStart !== -1) {
+                // More than one gap - not wraparound contiguous
+                return false;
+            }
+            gapStart = i;
+        }
+    }
+    
+    // If we have exactly one gap, check if it's between the wraparound edges
+    return gapStart !== -1;
 }
 
 function getLoopExpression(binary, numVars) {
@@ -848,7 +940,7 @@ function getLoopExpression(binary, numVars) {
 
 function displayPrimeImplicantsList(primeImplicants, numVars) {
     const container = document.getElementById('primeImplicantsList');
-    container.innerHTML = '<h3>Prime Implicants</h3>';
+    container.innerHTML = '<h3>Minimal Prime Implicants (Optimal Solution)</h3>';
 
     primeImplicants.forEach((pi, idx) => {
         const color = LOOP_COLORS[idx % LOOP_COLORS.length];
