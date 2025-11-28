@@ -78,18 +78,20 @@ impl Implicant {
     pub fn to_string(&self, num_vars: u32) -> String {
         let var_names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         let mut terms = Vec::new();
-
+        
         for i in (0..num_vars).rev() {
             let bit = 1 << i;
             if self.mask & bit != 0 {
+                // Fix: Use (num_vars - 1 - i) to map bits correctly
+                let var_idx = (num_vars - 1 - i) as usize;
                 if self.value & bit != 0 {
-                    terms.push(var_names[i as usize].to_string());
+                    terms.push(var_names[var_idx].to_string());
                 } else {
-                    terms.push(format!("{}'", var_names[i as usize]));
+                    terms.push(format!("{}'", var_names[var_idx])); // Using combining overline
                 }
             }
         }
-
+        
         if terms.is_empty() {
             "1".to_string()
         } else {
