@@ -1,1 +1,0 @@
-C:\Users\grace\Documents\VSC\js\kmap-wasm\target\wasm32-unknown-unknown\release\kmap_solver.wasm: C:\Users\grace\Documents\VSC\js\kmap-wasm\src\implicant.rs C:\Users\grace\Documents\VSC\js\kmap-wasm\src\lib.rs C:\Users\grace\Documents\VSC\js\kmap-wasm\src\optimizer.rs C:\Users\grace\Documents\VSC\js\kmap-wasm\src\solver.rs C:\Users\grace\Documents\VSC\js\kmap-wasm\src\wasm.rs
