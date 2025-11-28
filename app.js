@@ -4,6 +4,8 @@ import { URLState } from './urlState.js';
 import { InteractiveGrid } from './interactiveGrid.js';
 import { ImageExporter } from './imageExport.js';
 
+import CircuitGenerator from './circuitGenerator.js';
+
 const GRAY_CODE = {
     2: [0, 1],
     4: [0, 1, 3, 2],
@@ -23,9 +25,11 @@ const LOOP_COLORS = [
 const VAR_NAMES = ['A', 'B', 'C', 'D', 'E', 'F'];
 const SAVES_KEY = 'kmap_saves_v1';
 
-let batchKMaps = [];
 let wasmReady = false;
 let currentInputMode = 'minterm';
+
+// State for redrawing loops on resize
+let lastSolveState = null;
 
 function initTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
@@ -37,6 +41,15 @@ function toggleTheme() {
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
+    
+    // Update mermaid theme and re-render circuit if present
+    if (CircuitGenerator && typeof CircuitGenerator.updateTheme === 'function') {
+        CircuitGenerator.updateTheme();
+        // Re-solve to regenerate circuit with new theme
+        if (lastSolveState) {
+            setTimeout(() => solveKMap(), 50);
+        }
+    }
 }
 
 function loadSavedExpressions() {
@@ -59,44 +72,58 @@ function saveSavedExpressions(list) {
 
 function renderSavedList() {
     const container = document.getElementById('savedList');
+    if (!container) return;
+
     const saved = loadSavedExpressions();
 
     if (!saved.length) {
-        container.innerHTML = '<p class="status status-info">No saved expressions yet.</p>';
+        container.innerHTML = '';
         return;
     }
 
     container.innerHTML = '';
     saved.forEach((item, idx) => {
         const div = document.createElement('div');
-        div.className = 'batch-item';
+        div.className = 'saved-item';
         div.innerHTML = `
-            <div class="batch-item-content">
-                <strong>${item.expression}</strong><br>
-                <span class="saved-meta">
-                    ${item.numVars} vars &middot;
-                    Minterms: ${item.minterms.join(', ')}${
-                        item.dontCares.length
-                            ? ` &middot; DC: ${item.dontCares.join(', ')}`
-                            : ''
-                    }<br>
-                    Saved: ${new Date(item.createdAt).toLocaleString()}
-                </span>
+            <div class="saved-item-info" data-load-index="${idx}">
+                <div class="saved-item-expr">${item.expression}</div>
+                <div class="saved-item-meta">${item.numVars} vars · m(${item.minterms.slice(0, 4).join(',')}${item.minterms.length > 4 ? '...' : ''})</div>
             </div>
-            <button class="btn btn-outline btn-sm" data-save-index="${idx}">
-                Delete
-            </button>
+            <button class="saved-item-delete" data-delete-index="${idx}" title="Delete">✕</button>
         `;
         container.appendChild(div);
     });
 
-    container.querySelectorAll('button[data-save-index]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const idx = parseInt(btn.dataset.saveIndex, 10);
+    // Click to load
+    container.querySelectorAll('.saved-item-info').forEach(info => {
+        info.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idx = parseInt(info.dataset.loadIndex, 10);
+            const list = loadSavedExpressions();
+            const item = list[idx];
+            if (item) {
+                document.getElementById('variables').value = item.numVars;
+                document.getElementById('minterms').value = item.minterms.join(', ');
+                document.getElementById('dontcares').value = item.dontCares.join(', ');
+                switchInputMode('minterm');
+                ImageExporter.showNotification('K-Map loaded!', 'info');
+                // Auto-solve after loading
+                setTimeout(() => document.getElementById('solveBtn').click(), 100);
+            }
+        });
+    });
+
+    // Delete button
+    container.querySelectorAll('.saved-item-delete').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idx = parseInt(btn.dataset.deleteIndex, 10);
             const list = loadSavedExpressions();
             list.splice(idx, 1);
             saveSavedExpressions(list);
             renderSavedList();
+            ImageExporter.showNotification('K-Map deleted', 'info');
         });
     });
 }
@@ -106,7 +133,7 @@ function saveCurrentExpression() {
     const expr = resultDiv.textContent.trim();
     
     if (!expr) {
-        alert('No minimized expression to save. Solve a K-map first.');
+        ImageExporter.showNotification('Solve a K-map first!', 'warning');
         return;
     }
     
@@ -122,18 +149,17 @@ function saveCurrentExpression() {
     } else if (currentInputMode === 'expression') {
         const expr = document.getElementById('booleanExpr').value.trim();
         if (!expr) {
-            alert('No expression available.');
+            ImageExporter.showNotification('No expression available', 'error');
             return;
         }
         try {
             minterms = ExpressionParser.parseExpression(expr, numVars);
             dontCares = [];
         } catch (e) {
-            alert('Could not extract minterms from expression.');
+            ImageExporter.showNotification('Could not extract minterms', 'error');
             return;
         }
     } else if (currentInputMode === 'interactive') {
-        // Extract from interactive grid
         const state = InteractiveGrid.extractState(numVars);
         minterms = state.minterms;
         dontCares = state.dontCares;
@@ -150,6 +176,7 @@ function saveCurrentExpression() {
     });
     saveSavedExpressions(list);
     renderSavedList();
+    ImageExporter.showNotification('K-Map saved!', 'success');
 }
 
 async function initWasm() {
@@ -169,8 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('themeToggle').addEventListener('click', toggleTheme);
     document.getElementById('solveBtn').addEventListener('click', solveKMap);
-    document.getElementById('addBatchBtn').addEventListener('click', addToBatch);
-    document.getElementById('exportBtn').addEventListener('click', exportToCSV);
 
     const saveBtn = document.getElementById('saveCurrentBtn');
     const clearBtn = document.getElementById('clearSavedBtn');
@@ -191,13 +216,48 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize new features
     initializeNewFeatures();
+    
+    // Handle window resize - redraw loops
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            if (lastSolveState) {
+                redrawLoops();
+            }
+        }, 150);
+    });
 });
+
+// Redraw loops without re-solving
+function redrawLoops() {
+    if (!lastSolveState) return;
+    
+    const { numVars, primeImplicants } = lastSolveState;
+    const container = document.querySelector('.kmap-container');
+    const table = container?.querySelector('table');
+    
+    if (container && table && primeImplicants) {
+        // Remove existing overlay
+        const existingOverlay = container.querySelector('.loop-overlay');
+        if (existingOverlay) existingOverlay.remove();
+        
+        // Redraw
+        drawLoops(container, table, numVars, primeImplicants);
+    }
+}
 
 function initializeNewFeatures() {
     if (URLState.loadFromURL()) {
+        // Disable animations during URL load to prevent loop positioning issues
+        document.body.classList.add('no-animate');
+        
+        // Wait for DOM to be fully ready before solving
         setTimeout(() => {
             document.getElementById('solveBtn').click();
-        }, 100);
+            // Re-enable animations after load
+            setTimeout(() => document.body.classList.remove('no-animate'), 500);
+        }, 50);
     }
     
     document.getElementById('modeMinterm')?.addEventListener('click', (e) => switchInputMode('minterm', e));
@@ -288,8 +348,22 @@ function solveKMap() {
             new Uint32Array(dontCares)
         );
 
+        // Store state for resize redraw
+        lastSolveState = {
+            numVars,
+            minterms,
+            dontCares,
+            primeImplicants: result.minimal_implicants
+        };
+
         displayResult(result.expression);
         displayKMap(numVars, minterms, dontCares, result.minimal_implicants);
+        
+        // container where we show the diagram
+        const circuitContainer = document.getElementById('circuitContainer');
+        circuitContainer.innerHTML = ''; // clear previous
+        const svg = CircuitGenerator.generate(result.expression, VAR_NAMES.slice(0, numVars));
+        circuitContainer.appendChild(svg);
     } catch (error) {
         console.error('Error:', error);
         alert('An error occurred: ' + error.message);
@@ -309,14 +383,14 @@ function handleShare() {
     } else if (currentInputMode === 'expression') {
         const expr = document.getElementById('booleanExpr').value.trim();
         if (!expr) {
-            alert('Please enter an expression first.');
+            ImageExporter.showNotification('Enter an expression first!', 'warning');
             return;
         }
         try {
             minterms = ExpressionParser.parseExpression(expr, numVars);
             dontCares = [];
         } catch (e) {
-            alert('Could not parse expression.');
+            ImageExporter.showNotification('Could not parse expression', 'error');
             return;
         }
     } else if (currentInputMode === 'interactive') {
@@ -326,14 +400,14 @@ function handleShare() {
     }
     
     if (minterms.length === 0) {
-        alert('Please solve a K-map first before sharing.');
+        ImageExporter.showNotification('Solve a K-map first!', 'warning');
         return;
     }
     
     const shareUrl = URLState.encodeState(numVars, minterms, dontCares);
     navigator.clipboard.writeText(shareUrl)
-        .then(() => ImageExporter.showNotification('Link copied to clipboard!'))
-        .catch(() => alert(`Share link: ${shareUrl}`));
+        .then(() => ImageExporter.showNotification('Link copied!', 'success'))
+        .catch(() => ImageExporter.showNotification('Could not copy link', 'error'));
 }
 
 function displayResult(expression) {
@@ -347,10 +421,12 @@ function displayResult(expression) {
 function displayKMap(numVars, minterms, dontCares, primeImplicants) {
     const kmapDiv = document.getElementById('kmap');
     const kmapSection = document.getElementById('kmapSection');
+    const emptyState = document.getElementById('emptyState');
 
     if (numVars > 4) {
         kmapDiv.innerHTML = '<p class="status status-info">K-map visualization available for 2-4 variables only.</p>';
         kmapSection.style.display = 'block';
+        if (emptyState) emptyState.style.display = 'none';
         return;
     }
 
@@ -364,42 +440,23 @@ function displayKMap(numVars, minterms, dontCares, primeImplicants) {
 
     kmapDiv.appendChild(container);
 
-    setTimeout(() => {
-        if (primeImplicants && primeImplicants.length > 0) {
-            // Validate that minimal implicants cover all minterms
-            const coveredMinterms = new Set();
-            primeImplicants.forEach(pi => {
-                pi.minterms.forEach(m => coveredMinterms.add(m));
+    // Hide the empty state message
+    if (emptyState) emptyState.style.display = 'none';
+
+    // Use requestAnimationFrame for more reliable layout timing
+    const drawLoopsWhenReady = () => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (primeImplicants && primeImplicants.length > 0) {
+                    drawLoops(container, table, numVars, primeImplicants);
+                    displayPrimeImplicantsList(primeImplicants, numVars);
+                }
             });
-            
-            const allMintermssCovered = minterms.every(m => coveredMinterms.has(m));
-            if (!allMintermssCovered) {
-                console.warn('WARNING: Minimal implicants do not cover all minterms! This indicates an algorithm error.');
-            }
-            
-            // Debug: Log the minimal implicants
-            console.log('Minimal implicants for debugging:');
-            primeImplicants.forEach((pi, idx) => {
-                console.log(`  Group ${idx + 1}: binary="${pi.binary}", minterms=[${pi.minterms.join(', ')}]`);
-                // Log the grid positions for each minterm
-                const positions = pi.minterms.map(m => {
-                    // Map minterm to grid position
-                    if (numVars === 3) {
-                        const a = Math.floor(m / 4);
-                        const bc = m % 4;
-                        const grayBC = GRAY_CODE[4];
-                        const bcIdx = grayBC.indexOf(bc);
-                        return `(r=${a},c=${bcIdx})`;
-                    }
-                    return '?';
-                });
-                console.log(`    Positions: ${positions.join(', ')}`);
-            });
-            
-            drawLoops(container, table, numVars, primeImplicants);
-            displayPrimeImplicantsList(primeImplicants, numVars);
-        }
-    }, 100);
+        });
+    };
+
+    // Wait a bit for CSS animations to settle, then draw loops
+    setTimeout(drawLoopsWhenReady, 150);
 
     kmapSection.style.display = 'block';
 }
@@ -572,6 +629,12 @@ function createCell(minterm, minterms, dontCares, row, col) {
 }
 
 function drawLoops(container, table, numVars, primeImplicants) {
+    // Remove any existing loop overlay and tooltip
+    const existingOverlay = container.querySelector('.loop-overlay');
+    if (existingOverlay) existingOverlay.remove();
+    const existingTooltip = document.querySelector('.loop-tooltip');
+    if (existingTooltip) existingTooltip.remove();
+    
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.classList.add('loop-overlay');
     
@@ -643,62 +706,49 @@ function drawLoops(container, table, numVars, primeImplicants) {
         const sortedCols = Array.from(colSet).sort((a, b) => a - b);
         
         // CRITICAL: Validate that rows and columns are individually contiguous (no gaps)
-        let rowsContiguous = true;
+        // First check normal (non-wrap) contiguity
+        let rowsContiguousNormal = true;
         for (let i = 1; i < sortedRows.length; i++) {
             if (sortedRows[i] !== sortedRows[i - 1] + 1) {
-                rowsContiguous = false;
+                rowsContiguousNormal = false;
                 break;
             }
         }
-        
-        let colsContiguous = true;
+
+        let colsContiguousNormal = true;
         for (let i = 1; i < sortedCols.length; i++) {
             if (sortedCols[i] !== sortedCols[i - 1] + 1) {
-                colsContiguous = false;
+                colsContiguousNormal = false;
                 break;
             }
         }
-        
-        // If rows or cols aren't contiguous in their dimension, it's not a valid K-map rectangle
+
+        // Allow wraparound contiguity using helper `isContiguous`
+        const rowsContiguous = rowsContiguousNormal || isContiguous(sortedRows, rows);
+        const colsContiguous = colsContiguousNormal || isContiguous(sortedCols, cols);
+
+        // If either dimension is neither normally contiguous nor wrap-contiguous, it's invalid
         if (!rowsContiguous || !colsContiguous) {
             console.warn(`Invalid rectangle for prime implicant (rows contiguous: ${rowsContiguous}, cols contiguous: ${colsContiguous}):`, pi);
             return;
         }
-        
-        // IMPROVED WRAPAROUND DETECTION
-        let wrapsHorizontally = false;
-        if (sortedCols.length >= 2) {
-            const hasLeftEdge = sortedCols.includes(0);
-            const hasRightEdge = sortedCols.includes(cols - 1);
-            
-            if (hasLeftEdge && hasRightEdge && sortedCols.length < cols) {
-                // Check if there's actually a gap (not contiguous)
-                wrapsHorizontally = !isContiguous(sortedCols, cols);
-            }
-        }
-        
-        let wrapsVertically = false;
-        if (sortedRows.length >= 2) {
-            const hasTopEdge = sortedRows.includes(0);
-            const hasBottomEdge = sortedRows.includes(rows - 1);
-            
-            if (hasTopEdge && hasBottomEdge && sortedRows.length < rows) {
-                // Check if there's actually a gap (not contiguous)
-                wrapsVertically = !isContiguous(sortedRows, rows);
-            }
-        }
+
+        // Detect whether the contiguity relies on wraparound (i.e., normal contiguous was false but wrap contiguity true)
+        const wrapsHorizontally = !colsContiguousNormal && isContiguous(sortedCols, cols);
+        const wrapsVertically = !rowsContiguousNormal && isContiguous(sortedRows, rows);
         
         const loopElements = [];
         
         // Helper function to add hover events
         const addLoopInteraction = (element) => {
             element.style.opacity = baseOpacity;
+            element.style.strokeWidth = '4';
             element.style.transition = 'opacity 0.2s, stroke-width 0.2s';
             element.style.cursor = 'pointer';
             
             element.addEventListener('mouseenter', (e) => {
                 element.style.opacity = '0.9';
-                element.style.strokeWidth = '5';
+                element.style.strokeWidth = '6';
                 
                 const term = getLoopExpression(pi.binary, numVars);
                 
@@ -875,6 +925,7 @@ function drawLoops(container, table, numVars, primeImplicants) {
                     rect.setAttribute('ry', cornerRadius);
                     rect.classList.add('loop-rect');
                     rect.style.stroke = color;
+                    rect.style.fill = 'none';
                     addLoopInteraction(rect);
                     svg.appendChild(rect);
                 }
@@ -956,88 +1007,4 @@ function displayPrimeImplicantsList(primeImplicants, numVars) {
         `;
         container.appendChild(item);
     });
-}
-
-function addToBatch() {
-    const numVars = parseInt(document.getElementById('variables').value);
-    const mintermsInput = document.getElementById('minterms').value.trim();
-    const dontCaresInput = document.getElementById('dontcares').value.trim();
-    const resultDiv = document.getElementById('result');
-
-    if (!resultDiv.textContent) {
-        alert('Please solve a K-map first.');
-        return;
-    }
-
-    const minterms = mintermsInput
-        ? mintermsInput.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x))
-        : [];
-
-    const dontCares = dontCaresInput
-        ? dontCaresInput.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x))
-        : [];
-
-    batchKMaps.push({
-        numVars,
-        minterms,
-        dontCares,
-        expression: resultDiv.textContent,
-    });
-
-    renderBatchList();
-}
-
-function renderBatchList() {
-    const container = document.getElementById('batchList');
-
-    if (batchKMaps.length === 0) {
-        container.innerHTML = '<p class="status status-info">No items in batch. Add K-maps to process multiple expressions.</p>';
-        return;
-    }
-
-    container.innerHTML = '';
-
-    batchKMaps.forEach((kmap, idx) => {
-        const item = document.createElement('div');
-        item.className = 'batch-item';
-        item.innerHTML = `
-            <div class="batch-item-content">
-                <strong>Item ${idx + 1}:</strong> <code>${kmap.expression}</code><br>
-                <small>${kmap.numVars} vars | Minterms: ${kmap.minterms.join(', ')}</small>
-            </div>
-            <button class="btn btn-outline btn-sm" data-batch-index="${idx}">Remove</button>
-        `;
-        container.appendChild(item);
-    });
-
-    container.querySelectorAll('button[data-batch-index]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const idx = parseInt(btn.dataset.batchIndex);
-            batchKMaps.splice(idx, 1);
-            renderBatchList();
-        });
-    });
-}
-
-function exportToCSV() {
-    if (batchKMaps.length === 0) {
-        alert('No items in batch to export.');
-        return;
-    }
-
-    let csv = 'Variables,Minterms,DontCares,Expression\n';
-
-    batchKMaps.forEach(kmap => {
-        const mintermStr = kmap.minterms.join(';');
-        const dontCareStr = kmap.dontCares.join(';');
-        csv += `${kmap.numVars},"${mintermStr}","${dontCareStr}","${kmap.expression}"\n`;
-    });
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'kmap-batch.csv';
-    a.click();
-    URL.revokeObjectURL(url);
 }

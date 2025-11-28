@@ -1,8 +1,11 @@
 /* tslint:disable */
 /* eslint-disable */
-export function solve_kmap(num_vars: number, minterms: Uint32Array, dont_cares: Uint32Array): any;
+
 export function get_version(): string;
+
 export function init_panic_hook(): void;
+
+export function solve_kmap(num_vars: number, minterms: Uint32Array, dont_cares: Uint32Array): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -19,6 +22,7 @@ export interface InitOutput {
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
+
 /**
 * Instantiates the given `module`, which can either be bytes or
 * a precompiled `WebAssembly.Module`.

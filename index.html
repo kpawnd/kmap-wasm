@@ -3,119 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K-Map Solver - Karnaugh Map Minimization</title>
+    <title>K-Map Solver</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="circuitGenerator.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>K-Map Solver</h1>
-            <p class="subtitle">Boolean Function Minimization with Karnaugh Maps</p>
-            <button id="themeToggle" class="theme-toggle">
-                <svg class="sun-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <circle cx="12" cy="12" r="5"></circle>
-                    <line x1="12" y1="1" x2="12" y2="3"></line>
-                    <line x1="12" y1="21" x2="12" y2="23"></line>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                    <line x1="1" y1="12" x2="3" y2="12"></line>
-                    <line x1="21" y1="12" x2="23" y2="12"></line>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                </svg>
-                <svg class="moon-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                </svg>
-            </button>
+    <div class="app-container">
+        <!-- Compact header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1>K-Map Solver</h1>
+                <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+                    <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </button>
+            </div>
         </header>
 
-        <section class="card">
-            <h2>Input Configuration</h2>
-            
-            <div class="form-group">
-                <label for="variables">Number of Variables</label>
-                <select id="variables" class="form-control">
-                    <option value="2">2 Variables (A, B)</option>
-                    <option value="3" selected>3 Variables (A, B, C)</option>
-                    <option value="4">4 Variables (A, B, C, D)</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Input Mode</label>
-                <div class="button-group">
-                    <button id="modeMinterm" class="btn btn-sm btn-mode active">Minterm Mode</button>
-                    <button id="modeExpression" class="btn btn-sm btn-mode">Expression Mode</button>
-                    <button id="modeInteractive" class="btn btn-sm btn-mode">Interactive Mode</button>
-                </div>
-            </div>
-
-            <div id="mintermInputs">
+        <!-- Three-column layout -->
+        <div class="main-grid">
+            <!-- Left: Input controls -->
+            <div class="panel input-panel">
+                <h2>Setup</h2>
+                
                 <div class="form-group">
-                    <label for="minterms">Minterms (comma-separated)</label>
-                    <input type="text" id="minterms" class="form-control" placeholder="e.g., 0, 1, 3, 7">
+                    <label for="variables">Variables</label>
+                    <select id="variables" class="form-control">
+                        <option value="2">2 (A, B)</option>
+                        <option value="3" selected>3 (A, B, C)</option>
+                        <option value="4">4 (A, B, C, D)</option>
+                    </select>
                 </div>
+
                 <div class="form-group">
-                    <label for="dontcares">Don't Cares (optional)</label>
-                    <input type="text" id="dontcares" class="form-control" placeholder="e.g., 2, 5">
+                    <label>Mode</label>
+                    <div class="button-group compact">
+                        <button id="modeMinterm" class="btn btn-sm btn-mode active">Minterm</button>
+                        <button id="modeExpression" class="btn btn-sm btn-mode">Expr</button>
+                        <button id="modeInteractive" class="btn btn-sm btn-mode">Grid</button>
+                    </div>
+                </div>
+
+                <div id="mintermInputs">
+                    <div class="form-group">
+                        <label for="minterms">Minterms</label>
+                        <input type="text" id="minterms" class="form-control" placeholder="0,1,3,7">
+                    </div>
+                    <div class="form-group">
+                        <label for="dontcares">Don't Cares</label>
+                        <input type="text" id="dontcares" class="form-control" placeholder="2,5">
+                    </div>
+                </div>
+
+                <div id="expressionInput" style="display: none;">
+                    <div class="form-group">
+                        <label for="booleanExpr">Expression</label>
+                        <input type="text" id="booleanExpr" class="form-control" placeholder="AB+A'C">
+                    </div>
+                </div>
+
+                <div id="interactiveInput" style="display: none;">
+                    <div id="interactiveKmapContainer"></div>
+                </div>
+
+                <button id="solveBtn" class="btn btn-primary full-width">Solve</button>
+            </div>
+
+            <!-- Center: K-Map visualization -->
+            <div class="panel kmap-panel">
+                <h2>K-Map</h2>
+                
+                <div id="resultSection" style="display: none; margin-bottom: 1rem;">
+                    <div class="expression-box" id="result"></div>
+                </div>
+
+                <div id="kmapSection" style="display: none;">
+                    <div class="kmap-wrapper">
+                        <div id="kmap"></div>
+                    </div>
+                </div>
+
+                <div id="emptyState" class="empty-state">
+                    <p>Enter minterms and click Solve</p>
+                </div>
+
+                <div id="primeImplicantsList" class="prime-implicants-list"></div>
+            </div>
+
+            <!-- Right: Circuit and outputs -->
+            <div class="panel results-panel">
+                <h2>Circuit</h2>
+                
+                <div id="circuitContainer" class="circuit-container"></div>
+
+                <!-- Saved K-Maps List -->
+                <div id="savedSection" class="saved-section">
+                    <h3>Saved K-Maps</h3>
+                    <div id="savedList" class="saved-list"></div>
+                </div>
+
+                <div class="quick-actions">
+                    <button id="shareBtn" class="btn btn-sm btn-outline" title="Copy share link">📋 Share</button>
+                    <button id="exportImageBtn" class="btn btn-sm btn-outline" title="Export as image">📸 Export</button>
+                    <button id="saveCurrentBtn" class="btn btn-sm btn-outline" title="Save K-Map">💾 Save</button>
                 </div>
             </div>
-
-            <div id="expressionInput" style="display: none;">
-                <div class="form-group">
-                    <label for="booleanExpr">Boolean Expression</label>
-                    <input type="text" id="booleanExpr" class="form-control" placeholder="e.g., AB + A'C + BC">
-                    <small class="input-hint">Use: A,B,C,D | A' or !A for NOT | + for OR | * or space for AND</small>
-                </div>
-            </div>
-
-            <div id="interactiveInput" style="display: none;">
-                <p class="input-hint">Click cells to toggle: 0 → 1 → X → 0</p>
-                <div id="interactiveKmapContainer"></div>
-            </div>
-
-            <button id="solveBtn" class="btn btn-primary">Solve K-Map</button>
-            
-            <div class="button-group" style="margin-top: 1rem;">
-                <button id="shareBtn" class="btn btn-outline">📋 Share Link</button>
-                <button id="exportImageBtn" class="btn btn-outline">📸 Export PNG</button>
-            </div>
-        </section>
-
-        <section id="resultSection" class="card" style="display: none;">
-            <h2>Minimized Expression</h2>
-            <div class="expression-box" id="result"></div>
-        </section>
-
-        <section id="kmapSection" class="card" style="display: none;">
-            <h2>K-Map Visualization</h2>
-            <div class="kmap-wrapper">
-                <div id="kmap"></div>
-            </div>
-            <div id="primeImplicantsList" class="prime-implicants-list"></div>
-        </section>
-
-        <section class="card">
-            <h2>Batch Processing</h2>
-            <div class="button-group">
-                <button id="addBatchBtn" class="btn btn-secondary">Add to Batch</button>
-                <button id="exportBtn" class="btn btn-outline">📥 Export Batch (CSV)</button>
-            </div>
-            <div id="batchList" class="batch-list"></div>
-        </section>
-
-        <section class="card">
-            <h2>Saved Expressions</h2>
-            <p class="subtitle">Saved locally in this browser.</p>
-            <div class="button-group">
-                <button id="saveCurrentBtn" class="btn btn-secondary">Save Current</button>
-                <button id="clearSavedBtn" class="btn btn-outline">Clear All</button>
-            </div>
-            <div id="savedList" class="batch-list"></div>
-        </section>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        let mermaidReady = false;
+        const initMermaid = () => {
+            if (typeof mermaid !== 'undefined' && !mermaidReady) {
+                try {
+                    mermaid.initialize({ 
+                        startOnLoad: false,
+                        theme: 'default',
+                        securityLevel: 'loose',
+                        htmlLabels: true,
+                        flowchart: { useMaxWidth: true, padding: 15 }
+                    });
+                    mermaidReady = true;
+                } catch (e) {
+                    console.warn('Mermaid init failed:', e);
+                }
+            }
+        };
+        initMermaid();
+        document.addEventListener('DOMContentLoaded', initMermaid);
+        setTimeout(initMermaid, 500);
+    </script>
     <script type="module" src="app.js"></script>
 </body>
 </html>

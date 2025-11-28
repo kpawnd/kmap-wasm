@@ -37,14 +37,37 @@ export const ImageExporter = {
         }
     },
     
-    showNotification(message) {
-        const notification = document.createElement('div');
-        notification.className = 'share-notification';
-        notification.textContent = message;
-        document.body.appendChild(notification);
+    showNotification(message, type = 'success') {
+        // Remove any existing popup immediately
+        document.querySelectorAll('.popup-overlay').forEach(el => el.remove());
         
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
+        // Create popup overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'popup-overlay';
+        
+        const popup = document.createElement('div');
+        popup.className = 'popup-modal';
+        
+        const iconMap = {
+            success: '✓',
+            error: '✗',
+            info: 'ℹ',
+            warning: '⚠'
+        };
+        
+        const icon = iconMap[type] || iconMap.success;
+        popup.innerHTML = `
+            <div class="popup-icon ${type}">${icon}</div>
+            <div class="popup-message">${message}</div>
+        `;
+        
+        overlay.appendChild(popup);
+        document.body.appendChild(overlay);
+        
+        // Close on click
+        overlay.addEventListener('click', () => overlay.remove());
+        
+        // Auto-close after 1.5 seconds
+        setTimeout(() => overlay.remove(), 1500);
     }
 };

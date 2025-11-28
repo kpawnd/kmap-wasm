@@ -14,6 +14,7 @@ export const InteractiveGrid = {
             rows = 4; cols = 4;
         } else {
             container.innerHTML = '<p class="status status-info">Interactive mode available for 2-4 variables only.</p>';
+            this.gridState = null;
             return;
         }
         
@@ -125,6 +126,12 @@ export const InteractiveGrid = {
     extractState(numVars) {
         const minterms = [];
         const dontCares = [];
+        
+        // Guard against null gridState
+        if (!this.gridState) {
+            return { minterms, dontCares };
+        }
+        
         const GRAY_CODE_TBL = { 2: [0, 1], 4: [0, 1, 3, 2] };
         
         for (let r = 0; r < this.gridState.length; r++) {
