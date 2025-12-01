@@ -6,6 +6,15 @@ import { ImageExporter } from './imageExport.js';
 
 import CircuitGenerator from './circuitGenerator.js';
 
+// Escape a string for safe insertion into innerHTML/text
+function escapeHtml(string) {
+    return String(string)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 const GRAY_CODE = {
     2: [0, 1],
     4: [0, 1, 3, 2],
@@ -87,7 +96,7 @@ function renderSavedList() {
         div.className = 'saved-item';
         div.innerHTML = `
             <div class="saved-item-info" data-load-index="${idx}">
-                <div class="saved-item-expr">${item.expression}</div>
+                <div class="saved-item-expr">${escapeHtml(item.expression)}</div>
                 <div class="saved-item-meta">${item.numVars} vars · m(${item.minterms.slice(0, 4).join(',')}${item.minterms.length > 4 ? '...' : ''})</div>
             </div>
             <button class="saved-item-delete" data-delete-index="${idx}" title="Delete">✕</button>
