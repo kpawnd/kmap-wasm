@@ -95,11 +95,11 @@ function renderSavedList() {
         const div = document.createElement('div');
         div.className = 'saved-item';
         div.innerHTML = `
-            <div class="saved-item-info" data-load-index="${idx}">
+            <div class="saved-item-info" data-load-index="${escapeHtml(idx)}">
                 <div class="saved-item-expr">${escapeHtml(item.expression)}</div>
-                <div class="saved-item-meta">${item.numVars} vars · m(${item.minterms.slice(0, 4).join(',')}${item.minterms.length > 4 ? '...' : ''})</div>
+                <div class="saved-item-meta">${escapeHtml(item.numVars)} vars · m(${item.minterms.slice(0, 4).map(escapeHtml).join(',')}${item.minterms.length > 4 ? '...' : ''})</div>
             </div>
-            <button class="saved-item-delete" data-delete-index="${idx}" title="Delete">✕</button>
+            <button class="saved-item-delete" data-delete-index="${escapeHtml(idx)}" title="Delete">✕</button>
         `;
         container.appendChild(div);
     });
