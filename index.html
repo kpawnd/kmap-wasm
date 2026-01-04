@@ -53,6 +53,7 @@
                         <button id="modeMinterm" class="btn btn-sm btn-mode active">Minterm</button>
                         <button id="modeExpression" class="btn btn-sm btn-mode">Expr</button>
                         <button id="modeInteractive" class="btn btn-sm btn-mode">Grid</button>
+                        <button id="modeLearn" class="btn btn-sm btn-mode">Learn</button>
                     </div>
                 </div>
 
@@ -76,6 +77,50 @@
 
                 <div id="interactiveInput" style="display: none;">
                     <div id="interactiveKmapContainer"></div>
+                </div>
+
+                <div id="learnInput" style="display: none;">
+                    <div class="form-group">
+                        <label>Learning Mode</label>
+                        <div class="button-group compact">
+                            <button id="learnTutorial" class="btn btn-sm btn-outline">Tutorial</button>
+                            <button id="learnPractice" class="btn btn-sm btn-outline">Practice</button>
+                            <button id="learnQuiz" class="btn btn-sm btn-outline">Quiz</button>
+                        </div>
+                    </div>
+                    <div id="tutorialControls" style="display: none;">
+                        <div class="form-group">
+                            <label for="tutorialProblem">Problem</label>
+                            <select id="tutorialProblem" class="form-control">
+                                <option value="simple">Simple 2-variable</option>
+                                <option value="medium">Medium 3-variable</option>
+                                <option value="complex">Complex 4-variable</option>
+                            </select>
+                        </div>
+                        <button id="startTutorial" class="btn btn-primary full-width">Start Tutorial</button>
+                    </div>
+                    <div id="practiceControls" style="display: none;">
+                        <div class="form-group">
+                            <label for="practiceDifficulty">Difficulty</label>
+                            <select id="practiceDifficulty" class="form-control">
+                                <option value="easy">Easy (2 vars)</option>
+                                <option value="medium">Medium (3 vars)</option>
+                                <option value="hard">Hard (4 vars)</option>
+                            </select>
+                        </div>
+                        <button id="generatePractice" class="btn btn-primary full-width">Generate Problem</button>
+                    </div>
+                    <div id="quizControls" style="display: none;">
+                        <div class="form-group">
+                            <label for="quizDifficulty">Quiz Level</label>
+                            <select id="quizDifficulty" class="form-control">
+                                <option value="beginner">Beginner</option>
+                                <option value="intermediate">Intermediate</option>
+                                <option value="advanced">Advanced</option>
+                            </select>
+                        </div>
+                        <button id="startQuiz" class="btn btn-primary full-width">Start Quiz</button>
+                    </div>
                 </div>
 
                 <button id="solveBtn" class="btn btn-primary full-width">Solve</button>
@@ -108,6 +153,12 @@
                 
                 <div id="circuitContainer" class="circuit-container"></div>
 
+                <!-- Combinational Circuit Display -->
+                <div id="combinationalCircuitSection" style="display: none; margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">
+                    <h3>Combinational Circuit</h3>
+                    <div id="combinationalCircuitContainer" class="combinational-circuit-output"></div>
+                </div>
+
                 <!-- Saved K-Maps List -->
                 <div id="savedSection" class="saved-section">
                     <h3>Saved K-Maps</h3>
@@ -121,6 +172,75 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Tutorial Modal -->
+    <div id="tutorialModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content tutorial-modal">
+            <div class="modal-header">
+                <h2>K-Map Tutorial</h2>
+                <button id="closeTutorial" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="tutorialStep" class="tutorial-step">
+                    <div class="step-content">
+                        <h3 id="stepTitle">Step 1: Understanding the Problem</h3>
+                        <p id="stepDescription">Welcome to the K-Map tutorial! We'll walk through the complete minimization process step by step.</p>
+                        <div id="stepVisualization" class="step-visualization"></div>
+                    </div>
+                    <div class="step-navigation">
+                        <button id="prevStep" class="btn btn-outline" disabled>Previous</button>
+                        <div class="step-indicator">
+                            <span id="currentStep">1</span> / <span id="totalSteps">8</span>
+                        </div>
+                        <button id="nextStep" class="btn btn-primary">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz Modal -->
+    <div id="quizModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content quiz-modal">
+            <div class="modal-header">
+                <h2>K-Map Quiz</h2>
+                <button id="closeQuiz" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="quizContent" class="quiz-content">
+                    <div class="quiz-question">
+                        <h3 id="quizQuestion">Question 1</h3>
+                        <div id="quizProblem" class="quiz-problem"></div>
+                    </div>
+                    <div class="quiz-answers">
+                        <button class="quiz-answer-btn" data-answer="A"></button>
+                        <button class="quiz-answer-btn" data-answer="B"></button>
+                        <button class="quiz-answer-btn" data-answer="C"></button>
+                        <button class="quiz-answer-btn" data-answer="D"></button>
+                    </div>
+                </div>
+                <div class="quiz-results" id="quizResults" style="display: none;">
+                    <h3>Quiz Complete!</h3>
+                    <div class="quiz-score">
+                        <div class="score-circle">
+                            <span id="quizScore">0</span>/<span id="quizTotal">0</span>
+                        </div>
+                        <p id="quizFeedback"></p>
+                    </div>
+                    <button id="retakeQuiz" class="btn btn-primary">Retake Quiz</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hint System -->
+    <div id="hintPanel" class="hint-panel" style="display: none;">
+        <div class="hint-header">
+            <span>💡 Hint</span>
+            <button id="closeHint" class="hint-close">&times;</button>
+        </div>
+        <div id="hintContent" class="hint-content"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>

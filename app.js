@@ -3,8 +3,10 @@ import { ExpressionParser } from './expressionParser.js';
 import { URLState } from './urlState.js';
 import { InteractiveGrid } from './interactiveGrid.js';
 import { ImageExporter } from './imageExport.js';
+import { EducationalFeatures } from './educationalFeatures.js';
 
 import CircuitGenerator from './circuitGenerator.js';
+import CombinationalCircuit from './combinationalCircuit.js';
 
 // Escape a string for safe insertion into innerHTML/text
 function escapeHtml(string) {
@@ -368,11 +370,37 @@ function solveKMap() {
         displayResult(result.expression);
         displayKMap(numVars, minterms, dontCares, result.minimal_implicants);
         
-        // container where we show the diagram
+        // Display Mermaid circuit
         const circuitContainer = document.getElementById('circuitContainer');
         circuitContainer.innerHTML = ''; // clear previous
         const svg = CircuitGenerator.generate(result.expression, VAR_NAMES.slice(0, numVars));
         circuitContainer.appendChild(svg);
+
+        // Display Combinational Circuit - Simulator & Truth Table
+        const combinationalSection = document.getElementById('combinationalCircuitSection');
+        const combinationalContainer = document.getElementById('combinationalCircuitContainer');
+        combinationalContainer.innerHTML = '';
+        
+        try {
+            const varNames = VAR_NAMES.slice(0, numVars);
+            
+            // Create circuit in the system
+            const circuitName = `circuit_${Date.now()}`;
+            CombinationalCircuit.createCircuit(circuitName, result.expression, varNames);
+            
+            // Add simulator
+            const simulator = CombinationalCircuit.renderSimulator(circuitName);
+            if (simulator) combinationalContainer.appendChild(simulator);
+            
+            // Add truth table
+            const truthTable = CombinationalCircuit.renderTruthTable(circuitName);
+            if (truthTable) combinationalContainer.appendChild(truthTable);
+            
+            combinationalSection.style.display = 'block';
+        } catch (error) {
+            console.error('Error rendering combinational circuit:', error);
+            combinationalSection.style.display = 'none';
+        }
     } catch (error) {
         console.error('Error:', error);
         alert('An error occurred: ' + error.message);
@@ -1017,3 +1045,55 @@ function displayPrimeImplicantsList(primeImplicants, numVars) {
         container.appendChild(item);
     });
 }
+
+// Initialize educational features
+const educationalFeatures = new EducationalFeatures({
+    switchInputMode: switchInputMode,
+    showNotification: (message, type) => ImageExporter.showNotification(message, type)
+});
+
+// Initialize after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    initWasm();
+
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+    document.getElementById('solveBtn').addEventListener('click', solveKMap);
+
+    const saveBtn = document.getElementById('saveCurrentBtn');
+    const clearBtn = document.getElementById('clearSavedBtn');
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveCurrentExpression);
+    }
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            if (confirm('Clear all saved expressions in this browser?')) {
+                localStorage.removeItem(SAVES_KEY);
+                renderSavedList();
+            }
+        });
+    }
+
+    renderSavedList();
+    
+    // Initialize new features
+    initializeNewFeatures();
+    
+
+    // Initialize educational features
+    const educationalFeatures = new EducationalFeatures({
+        switchInputMode: switchInputMode,
+        showNotification: (message, type) => ImageExporter.showNotification(message, type)
+    });
+    // Handle window resize - redraw loops
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            if (lastSolveState) {
+                redrawLoops();
+            }
+        }, 150);
+    });
+});
